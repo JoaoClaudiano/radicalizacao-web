@@ -2,73 +2,80 @@ import streamlit as st
 import pandas as pd
 import json
 import os
-import geopandas as gpd
 import plotly.express as px
-from wordcloud import WordCloud
-import matplotlib.pyplot as plt
 
-st.set_page_config(page_title="Radicalização Brasil", layout="wide")
-st.title("Dashboard de Radicalização no Brasil")
+st.set_page_config(page_title="Dashboard Radicalização", layout="wide")
 
-# --- Caminho correto ---
-DATA_PATH = os.path.join(os.path.dirname(__file__), "../data")
+st.title("Dashboard Radicalização por Estados")
 
-# --- Dados por estado ---
-with open(os.path.join(DATA_PATH, "indicadores_estado.json"), "r") as f:
-    dados = json.load(f)
+# Caminho do JSON
+json_path = "data/posts.json"
+
+# ----------------------------
+# 1. Carregando os dados JSON
+# ----------------------------
+if not os.path.exists(json_path):
+    st.error(f"Arquivo JSON não encontrado: {json_path}")
+    st.stop()
+
+with open(json_path, "r", encoding="utf-8") as f:
+    try:
+        dados = json.load(f)
+    except json.JSONDecodeError:
+        st.error("Erro ao ler o JSON. Verifique o formato do arquivo.")
+        st.stop()
 
 df = pd.DataFrame(dados)
-df['geo'] = df['geo'].str.upper()
 
-# Verifica se coluna geo existe
+# ----------------------------
+# 2. Normaliza a coluna 'geo'
+# ----------------------------
 if 'geo' not in df.columns:
-    df['geo'] = "SEM_INFO"
-    
-# --- GeoJSON Brasil ---
-geojson_url = "https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson"
-brasil_geo = gpd.read_file(geojson_url)
-brasil_geo['name'] = brasil_geo['name'].str.upper()
+    df['geo'] = ''
 
-# --- Mapa ---
-fig_map = px.choropleth_mapbox(
-    df,
-    geojson=brasil_geo.__geo_interface__,
-    locations='geo',
-    featureidkey="properties.name",
-    color='indice_radicalizacao',
-    color_continuous_scale="Reds",
-    mapbox_style="carto-positron",
-    zoom=3.5,
-    center={"lat": -14.2350, "lon": -51.9253},
-    opacity=0.7,
-    hover_name='geo',
-    hover_data={'indice_radicalizacao':True, 'total_posts':True, 'radicalizados':True}
+df['geo'] = df['geo'].astype(str).str.upper()
+
+# Substitui valores vazios ou inválidos por "DESCONHECIDO"
+df['geo'] = df['geo'].replace({'': 'DESCONHECIDO', 'NA': 'DESCONHECIDO', None: 'DESCONHECIDO'})
+
+# ----------------------------
+# 3. Verifica se há dados
+# ----------------------------
+if df.empty:
+    st.warning("O DataFrame está vazio. Nenhum dado para exibir.")
+    st.stop()
+else:
+    st.success(f"Dados carregados com sucesso! Total de registros: {len(df)}")
+    st.dataframe(df.head(10))
+
+# ----------------------------
+# 4. Agrupamento por estado
+# ----------------------------
+st.subheader("Contagem de registros por estado")
+geo_counts = df['geo'].value_counts().reset_index()
+geo_counts.columns = ['Estado', 'Total']
+
+# Tabela
+st.table(geo_counts)
+
+# Gráfico de barras
+fig = px.bar(geo_counts, x='Estado', y='Total', color='Estado', text='Total')
+st.plotly_chart(fig, use_container_width=True)
+
+# ----------------------------
+# 5. Mapa interativo por estado
+# ----------------------------
+# Plotly tem um mapa choropleth de Brasil por sigla
+fig_map = px.choropleth(
+    geo_counts,
+    locations='Estado',
+    locationmode='ISO-3166-2',  # usa códigos UF
+    color='Total',
+    color_continuous_scale='Reds',
+    scope='south america',  # ou 'north america' ajustando para Brasil
+    labels={'Total': 'Quantidade'},
+    title='Distribuição de registros por Estado'
 )
-st.subheader("Mapa de Radicalização por Estado")
+
+fig_map.update_geos(fitbounds="locations", visible=False)
 st.plotly_chart(fig_map, use_container_width=True)
-
-# --- Gráfico barras ---
-fig_bar = px.bar(df, x='geo', y='indice_radicalizacao', color='indice_radicalizacao',
-                 labels={'geo':'Estado','indice_radicalizacao':'Índice de Radicalização'},
-                 color_continuous_scale="Reds")
-st.subheader("Índice de Radicalização por Estado")
-st.plotly_chart(fig_bar, use_container_width=True)
-
-# --- Linha do tempo simulada ---
-df_tempo = pd.DataFrame({'date': pd.date_range(end=pd.Timestamp.now(), periods=5),
-                         'indice_radicalizacao':[0.3,0.35,0.33,0.38,0.36]})
-fig_line = px.line(df_tempo, x='date', y='indice_radicalizacao', markers=True,
-                   labels={'date':'Data','indice_radicalizacao':'Índice de Radicalização'})
-st.subheader("Evolução do Índice de Radicalização")
-st.plotly_chart(fig_line, use_container_width=True)
-
-# --- Nuvem de palavras últimas 24h ---
-with open(os.path.join(DATA_PATH, "wordcloud_24h.json"), "r") as f:
-    word_counts = dict(json.load(f))
-
-wordcloud = WordCloud(width=800, height=400, background_color='white').generate_from_frequencies(word_counts)
-st.subheader("Palavras mais comuns últimas 24h")
-fig_wc, ax = plt.subplots(figsize=(12,6))
-ax.imshow(wordcloud, interpolation="bilinear")
-ax.axis("off")
-st.pyplot(fig_wc)
