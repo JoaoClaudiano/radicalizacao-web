@@ -2,10 +2,12 @@ streamlit
 pandas
 numpy
 plotly
+geopandas
+shapely
 requests
-tweepy       # para Twitter/X API gratuita
-praw         # Reddit API
-transformers # Hugging Face NLP
-torch        # backend de ML
-geopandas    # manipulação de GeoJSON para mapas
-shapely      # geometrias de estados
+praw
+feedparser
+transformers
+torch
+wordcloud
+matplotlib
