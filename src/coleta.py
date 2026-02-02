@@ -1,45 +1,30 @@
 import requests
 import json
-import os
-from datetime import datetime
 
-# --- Caminho correto para data ---
-DATA_PATH = os.path.join(os.path.dirname(__file__), "../data")
-os.makedirs(DATA_PATH, exist_ok=True)
-
-# --- Twitter/X Bearer Token ---
+# --- CONFIGURAÇÃO ---
 BEARER_TOKEN = "AAAAAAAAAAAAAAAAAAAAAI5q7QEAAAAAgY6kUhPI0%2BHs5gGsDyZBWWTLfDg%3DYlk7xA1x5SqyqBgkAdkn5wlsi4YMeELNdgnzOgvjL8eIeWB9xY"
+QUERY = "radicalização OR extremismo OR ideologia"  # exemplo de busca
+MAX_RESULTS = 50  # por request
 
-def coletar_tweets(query="radicalismo OR extremismo", max_results=50):
+def coletar_posts():
     url = "https://api.twitter.com/2/tweets/search/recent"
     headers = {"Authorization": f"Bearer {BEARER_TOKEN}"}
     params = {
-        "query": query + " lang:pt -is:retweet",
-        "max_results": max_results,
-        "tweet.fields": "created_at,geo"
+        "query": QUERY,
+        "max_results": MAX_RESULTS,
+        "tweet.fields": "created_at,geo,text,author_id",
     }
-    res = requests.get(url, headers=headers, params=params)
-    if res.status_code != 200:
-        print(f"Erro Twitter API: {res.status_code}")
+
+    response = requests.get(url, headers=headers, params=params)
+    if response.status_code != 200:
+        print("Erro na coleta:", response.text)
         return []
-    data = res.json().get("data", [])
-    tweets = []
-    for t in data:
-        geo = t.get("geo", {}).get("place_id", None)
-        tweets.append({
-            "text": t["text"],
-            "source": "twitter",
-            "date": t["created_at"],
-            "geo": geo
-        })
-    return tweets
 
-# --- Executa coleta ---
-print("Coletando tweets do Twitter/X...")
-todos_posts = coletar_tweets(max_results=50)
+    dados = response.json().get("data", [])
+    print(f"{len(dados)} posts coletados do X")
+    return dados
 
-# --- Salva JSON ---
-with open(os.path.join(DATA_PATH, "posts.json"), "w") as f:
-    json.dump(todos_posts, f, indent=2)
-
-print(f"Coleta concluída! Total de posts: {len(todos_posts)}")
+if __name__ == "__main__":
+    posts = coletar_posts()
+    with open("../data/posts.json", "w", encoding="utf-8") as f:
+        json.dump(posts, f, ensure_ascii=False, indent=2)
