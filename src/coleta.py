@@ -2,7 +2,7 @@ import requests
 import praw
 import feedparser
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # ---------- 1️⃣ Twitter/X ----------
 BEARER_TOKEN = "AAAAAAAAAAAAAAAAAAAAAI5q7QEAAAAAgY6kUhPI0%2BHs5gGsDyZBWWTLfDg%3DYlk7xA1x5SqyqBgkAdkn5wlsi4YMeELNdgnzOgvjL8eIeWB9xY"
@@ -74,7 +74,7 @@ print("Coletando Reddit...")
 todos_posts.extend(coletar_reddit(limit=50))
 
 print("Coletando RSS...")
-rss_feeds = ["https://g1.globo.com/rss/g1/politica/"]  # exemplo
+rss_feeds = ["https://g1.globo.com/rss/g1/politica/"]
 todos_posts.extend(coletar_rss(rss_feeds))
 
 # ---------- 5️⃣ Salva em posts.json ----------
