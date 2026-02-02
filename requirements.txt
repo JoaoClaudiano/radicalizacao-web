@@ -1,0 +1,11 @@
+streamlit
+pandas
+numpy
+plotly
+requests
+tweepy       # para Twitter/X API gratuita
+praw         # Reddit API
+transformers # Hugging Face NLP
+torch        # backend de ML
+geopandas    # manipulação de GeoJSON para mapas
+shapely      # geometrias de estados
