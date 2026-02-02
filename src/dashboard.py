@@ -1,17 +1,22 @@
 import streamlit as st
 import pandas as pd
 import json
-import plotly.express as px
+import os
 import geopandas as gpd
+import plotly.express as px
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 
 st.set_page_config(page_title="Radicalização Brasil", layout="wide")
 st.title("Dashboard de Radicalização no Brasil")
 
+# --- Caminho correto ---
+DATA_PATH = os.path.join(os.path.dirname(__file__), "../data")
+
 # --- Dados por estado ---
-with open("../data/indicadores_estado.json", "r") as f:
+with open(os.path.join(DATA_PATH, "indicadores_estado.json"), "r") as f:
     dados = json.load(f)
+
 df = pd.DataFrame(dados)
 df['geo'] = df['geo'].str.upper()
 
@@ -38,34 +43,27 @@ fig_map = px.choropleth_mapbox(
 st.subheader("Mapa de Radicalização por Estado")
 st.plotly_chart(fig_map, use_container_width=True)
 
-# --- Gráfico de barras ---
-fig_bar = px.bar(
-    df,
-    x='geo',
-    y='indice_radicalizacao',
-    color='indice_radicalizacao',
-    labels={'geo':'Estado','indice_radicalizacao':'Índice de Radicalização'},
-    color_continuous_scale="Reds"
-)
+# --- Gráfico barras ---
+fig_bar = px.bar(df, x='geo', y='indice_radicalizacao', color='indice_radicalizacao',
+                 labels={'geo':'Estado','indice_radicalizacao':'Índice de Radicalização'},
+                 color_continuous_scale="Reds")
 st.subheader("Índice de Radicalização por Estado")
 st.plotly_chart(fig_bar, use_container_width=True)
 
-# --- Linha do tempo simulada (substituir futuramente por dados reais) ---
-df_tempo = pd.DataFrame({
-    'date': pd.date_range(end=pd.Timestamp.now(), periods=5),
-    'indice_radicalizacao': [0.3,0.35,0.33,0.38,0.36]
-})
+# --- Linha do tempo simulada ---
+df_tempo = pd.DataFrame({'date': pd.date_range(end=pd.Timestamp.now(), periods=5),
+                         'indice_radicalizacao':[0.3,0.35,0.33,0.38,0.36]})
 fig_line = px.line(df_tempo, x='date', y='indice_radicalizacao', markers=True,
                    labels={'date':'Data','indice_radicalizacao':'Índice de Radicalização'})
 st.subheader("Evolução do Índice de Radicalização")
 st.plotly_chart(fig_line, use_container_width=True)
 
 # --- Nuvem de palavras últimas 24h ---
-with open("../data/wordcloud_24h.json", "r") as f:
+with open(os.path.join(DATA_PATH, "wordcloud_24h.json"), "r") as f:
     word_counts = dict(json.load(f))
 
 wordcloud = WordCloud(width=800, height=400, background_color='white').generate_from_frequencies(word_counts)
-st.subheader("Palavras mais comuns nas últimas 24h")
+st.subheader("Palavras mais comuns últimas 24h")
 fig_wc, ax = plt.subplots(figsize=(12,6))
 ax.imshow(wordcloud, interpolation="bilinear")
 ax.axis("off")
