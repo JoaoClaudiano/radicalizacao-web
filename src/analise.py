@@ -25,6 +25,7 @@ def medir_radicalizacao(texto):
 df['score'] = df['text'].apply(medir_radicalizacao)
 
 # --- Agregação por estado ---
+df['geo'] = df['geo'].fillna("SEM_INFO")  # garante coluna geo
 estado_agregado = df.groupby('geo').agg(
     total_posts=('text','count'),
     radicalizados=('score','sum')
