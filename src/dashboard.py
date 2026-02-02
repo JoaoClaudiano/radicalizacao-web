@@ -1,108 +1,126 @@
 import streamlit as st
 import pandas as pd
-import geopandas as gpd
 import json
+from datetime import datetime, timedelta
+import plotly.express as px
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
-import plotly.express as px
-from datetime import datetime, timedelta
+import pydeck as pdk
 
-st.set_page_config(page_title="Dashboard Radicalização Avançado", layout="wide")
-st.title("Dashboard Radicalização Avançado")
+# ===========================
+# Carregamento de dados
+# ===========================
+st.title("Dashboard Radicalização - Brasil")
 
-# ----------------------------
-# 1. Carregando dados JSON
-# ----------------------------
-json_path = "data/posts.json"
-with open(json_path, "r", encoding="utf-8") as f:
+with open("dados.json", "r", encoding="utf-8") as f:
     dados = json.load(f)
 
 df = pd.DataFrame(dados)
 
-# Normaliza colunas
-df['geo'] = df.get('geo', '').astype(str).str.upper().replace({'': 'DESCONHECIDO', 'NA': 'DESCONHECIDO'})
-df['data'] = pd.to_datetime(df.get('data', None), errors='coerce')
-df['texto'] = df.get('texto', '').astype(str)
+# ===========================
+# Pré-processamento
+# ===========================
+# Verifica se existe a coluna 'geo'
+if 'geo' in df.columns:
+    df['geo'] = df['geo'].str.upper()
+else:
+    st.error("Coluna 'geo' não encontrada nos dados!")
 
-# ----------------------------
-# 2. Sidebar filtros
-# ----------------------------
-st.sidebar.header("Filtros")
-estados_disponiveis = df['geo'].unique().tolist()
-estados_selecionados = st.sidebar.multiselect("Estados", estados_disponiveis, default=estados_disponiveis)
+# Converte a coluna de data para datetime
+if 'data' in df.columns:
+    df['data'] = pd.to_datetime(df['data'])
+else:
+    st.error("Coluna 'data' não encontrada nos dados!")
 
-ult_24h_checkbox = st.sidebar.checkbox("Últimas 24h", value=True)
-palavra_filtro = st.sidebar.text_input("Filtrar por palavra-chave/hashtag")
+# ===========================
+# Filtros
+# ===========================
+estados = df['geo'].unique() if 'geo' in df.columns else []
+estado_selecionado = st.multiselect("Selecione o(s) Estado(s):", estados, default=estados)
 
-df_filtered = df[df['geo'].isin(estados_selecionados)]
-if palavra_filtro.strip():
-    df_filtered = df_filtered[df_filtered['texto'].str.contains(palavra_filtro, case=False)]
+df_filtered = df[df['geo'].isin(estado_selecionado)] if 'geo' in df.columns else df
 
-# ----------------------------
-# 3. Mapas reais do Brasil
-# ----------------------------
-st.subheader("Mapa interativo por Estado")
+# ===========================
+# Mapa interativo por estado
+# ===========================
+st.subheader("Mapa de registros por Estado")
+if not df_filtered.empty:
+    # Filtra apenas registros com latitude e longitude
+    df_mapa = df_filtered.dropna(subset=['lat', 'lon'])
+    st.map(df_mapa[['lat', 'lon']])
+else:
+    st.info("Nenhum registro para o(s) Estado(s) selecionado(s).")
 
-# Carrega shapefile Brasil (UFs)
-shapefile_path = "data/BR_UF_2023.shp"  # baixado do IBGE ou geojson oficial
-gdf = gpd.read_file(shapefile_path)
-gdf['UF'] = gdf['SIGLA']  # coluna UF deve existir no shapefile
+# ===========================
+# Ranking de palavras-chave
+# ===========================
+st.subheader("Ranking de palavras-chave mais citadas")
+if 'palavras_chave' in df.columns:
+    # Supõe que cada registro tem uma lista de palavras-chave
+    todas_palavras = [palavra for lista in df_filtered['palavras_chave'].dropna() for palavra in lista]
+    ranking = pd.Series(todas_palavras).value_counts().reset_index()
+    ranking.columns = ['Palavra', 'Quantidade']
+    st.dataframe(ranking.head(20))
+else:
+    st.info("Coluna 'palavras_chave' não encontrada.")
 
-# Conta registros por estado
-estado_counts = df_filtered['geo'].value_counts().reset_index()
-estado_counts.columns = ['UF', 'Total']
+# ===========================
+# Nuvem de palavras
+# ===========================
+st.subheader("Nuvem de palavras mais citadas")
+if todas_palavras:
+    wc = WordCloud(width=800, height=400, background_color='white').generate(" ".join(todas_palavras))
+    fig_wc, ax = plt.subplots(figsize=(15, 7))
+    ax.imshow(wc, interpolation='bilinear')
+    ax.axis("off")
+    st.pyplot(fig_wc)
+else:
+    st.info("Não há palavras para gerar a nuvem.")
 
-# Junta com GeoDataFrame
-gdf = gdf.merge(estado_counts, on='UF', how='left').fillna(0)
-
-# Plot interativo Plotly
-fig_map = px.choropleth(
-    gdf,
-    geojson=gdf.geometry,
-    locations=gdf.index,
-    color='Total',
-    hover_name='UF',
-    hover_data={'Total': True},
-    color_continuous_scale='Reds',
-    labels={'Total': 'Quantidade'}
-)
-fig_map.update_geos(fitbounds="locations", visible=False)
-st.plotly_chart(fig_map, use_container_width=True)
-
-# ----------------------------
-# 4. Ranking palavras-chave por estado
-# ----------------------------
-st.subheader("Ranking de palavras-chave por Estado")
-from collections import Counter
+# ===========================
+# Evolução temporal por estado
+# ===========================
+st.subheader("Evolução temporal por Estado")
 
 if not df_filtered.empty:
-    all_text = ' '.join(df_filtered['texto'])
-    palavras = [p.lower() for p in all_text.split() if len(p) > 3]  # filtra palavras pequenas
-    ranking = Counter(palavras).most_common(20)
-    df_ranking = pd.DataFrame(ranking, columns=['Palavra', 'Ocorrências'])
-    st.table(df_ranking)
+    df_filtered['data_dia'] = df_filtered['data'].dt.date
+    evolucao_dia = df_filtered.groupby(['geo', 'data_dia']).size().reset_index(name='Total')
 
-    # Nuvem de palavras
-    st.subheader("Nuvem de palavras-chave")
-    wordcloud = WordCloud(width=800, height=400, background_color='white', colormap='viridis').generate(all_text)
-    plt.figure(figsize=(15, 6))
-    plt.imshow(wordcloud, interpolation='bilinear')
-    plt.axis('off')
-    st.pyplot(plt)
-else:
-    st.info("Nenhum registro encontrado para os filtros selecionados.")
+    fig_evol = px.line(
+        evolucao_dia,
+        x='data_dia',
+        y='Total',
+        color='geo',
+        markers=True,
+        title='Evolução diária de registros por Estado',
+        labels={'geo': 'Estado', 'data_dia': 'Data', 'Total': 'Quantidade'}
+    )
+    st.plotly_chart(fig_evol, use_container_width=True)
 
-# ----------------------------
-# 5. Tendência últimas 24h
-# ----------------------------
-if ult_24h_checkbox:
-    st.subheader("Tendência últimas 24h")
+    # Evolução horária últimas 24h
     agora = datetime.now()
     ult_24h = agora - timedelta(hours=24)
     df_24h = df_filtered[df_filtered['data'] >= ult_24h]
+
     if not df_24h.empty:
-        trend_counts = df_24h.groupby(df_24h['data'].dt.hour).size().reset_index(name='Total')
-        fig_trend = px.line(trend_counts, x='data', y='Total', markers=True, title='Posts últimas 24h por hora')
-        st.plotly_chart(fig_trend, use_container_width=True)
+        df_24h['hora'] = df_24h['data'].dt.hour
+        evol_24h = df_24h.groupby(['geo', 'hora']).size().reset_index(name='Total')
+        fig_24h = px.line(
+            evol_24h,
+            x='hora',
+            y='Total',
+            color='geo',
+            markers=True,
+            title='Evolução horária últimos 24h por Estado',
+            labels={'geo': 'Estado', 'hora': 'Hora', 'Total': 'Quantidade'}
+        )
+        st.plotly_chart(fig_24h, use_container_width=True)
     else:
         st.info("Nenhum registro nas últimas 24h para os filtros selecionados.")
+else:
+    st.info("Nenhum registro encontrado para os filtros selecionados.")
+
+# ===========================
+# Fim do Dashboard
+# ===========================
+st.success("Dashboard carregado com sucesso!")
