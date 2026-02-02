@@ -1,0 +1,29 @@
+name: Atualizar Dashboard
+
+on:
+  schedule:
+    - cron: '0 2 * * *' # todo dia 02:00 UTC
+  workflow_dispatch:
+
+jobs:
+  atualizar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11
+
+      - name: Instalar dependências
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Rodar coleta
+        run: python src/coleta.py
+
+      - name: Rodar análise
+        run: python src/analise.py
