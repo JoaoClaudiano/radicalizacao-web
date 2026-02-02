@@ -1,10 +1,13 @@
 import requests
-import praw
-import feedparser
 import json
+import os
 from datetime import datetime
 
-# ---------- 1️⃣ Twitter/X ----------
+# --- Caminho correto para data ---
+DATA_PATH = os.path.join(os.path.dirname(__file__), "../data")
+os.makedirs(DATA_PATH, exist_ok=True)
+
+# --- Twitter/X Bearer Token ---
 BEARER_TOKEN = "AAAAAAAAAAAAAAAAAAAAAI5q7QEAAAAAgY6kUhPI0%2BHs5gGsDyZBWWTLfDg%3DYlk7xA1x5SqyqBgkAdkn5wlsi4YMeELNdgnzOgvjL8eIeWB9xY"
 
 def coletar_tweets(query="radicalismo OR extremismo", max_results=50):
@@ -31,54 +34,12 @@ def coletar_tweets(query="radicalismo OR extremismo", max_results=50):
         })
     return tweets
 
-# ---------- 2️⃣ Reddit ----------
-reddit = praw.Reddit(
-    client_id="SEU_CLIENT_ID",
-    client_secret="SEU_CLIENT_SECRET",
-    user_agent="radicalizacao_web"
-)
+# --- Executa coleta ---
+print("Coletando tweets do Twitter/X...")
+todos_posts = coletar_tweets(max_results=50)
 
-def coletar_reddit(subreddits=["brasil","politica"], limit=50):
-    posts = []
-    for sub in subreddits:
-        for submission in reddit.subreddit(sub).new(limit=limit):
-            posts.append({
-                "text": submission.title + " " + submission.selftext,
-                "source": "reddit",
-                "date": datetime.fromtimestamp(submission.created_utc).strftime("%Y-%m-%d %H:%M:%S"),
-                "geo": None
-            })
-    return posts
-
-# ---------- 3️⃣ RSS de blogs ----------
-def coletar_rss(urls):
-    posts = []
-    for rss_url in urls:
-        feed = feedparser.parse(rss_url)
-        for entry in feed.entries:
-            posts.append({
-                "text": entry.title + " " + getattr(entry, "summary", ""),
-                "source": "rss",
-                "date": getattr(entry, "published", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
-                "geo": None
-            })
-    return posts
-
-# ---------- 4️⃣ Executa coleta ----------
-todos_posts = []
-
-print("Coletando Twitter...")
-todos_posts.extend(coletar_tweets(max_results=50))
-
-print("Coletando Reddit...")
-todos_posts.extend(coletar_reddit(limit=50))
-
-print("Coletando RSS...")
-rss_feeds = ["https://g1.globo.com/rss/g1/politica/"]
-todos_posts.extend(coletar_rss(rss_feeds))
-
-# ---------- 5️⃣ Salva em posts.json ----------
-with open("../data/posts.json", "w") as f:
+# --- Salva JSON ---
+with open(os.path.join(DATA_PATH, "posts.json"), "w") as f:
     json.dump(todos_posts, f, indent=2)
 
-print(f"Coleta finalizada! Total de posts: {len(todos_posts)}")
+print(f"Coleta concluída! Total de posts: {len(todos_posts)}")
