@@ -1,5 +1,4 @@
 import pandas as pd
-from collections import Counter
 import json
 
 # Carrega dados
@@ -8,12 +7,10 @@ with open("../data/posts.json", "r") as f:
 
 df = pd.DataFrame(posts)
 
-# --- Função simples de "radicalização" ---
+# Score de radicalização simples
 def medir_radicalizacao(texto):
-    """Simples scoring de radicalização baseado em palavras-chave"""
     palavras_radicais = ["besteira", "radical", "conspirações", "ódio", "violência"]
-    score = sum(1 for palavra in palavras_radicais if palavra.lower() in texto.lower())
-    return score
+    return sum(1 for palavra in palavras_radicais if palavra.lower() in texto.lower())
 
 df['score'] = df['text'].apply(medir_radicalizacao)
 
@@ -25,7 +22,6 @@ estado_agregado = df.groupby('geo').agg(
 
 estado_agregado['indice_radicalizacao'] = estado_agregado['radicalizados'] / estado_agregado['total_posts']
 
-print(estado_agregado)
-
-# Salva dados agregados
+# Salva dados
 estado_agregado.to_json("../data/indicadores_estado.json", orient='records')
+print("Indicadores salvos!")
