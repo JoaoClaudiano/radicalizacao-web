@@ -7,23 +7,18 @@ import geopandas as gpd
 st.set_page_config(page_title="Radicalização Brasil", layout="wide")
 st.title("Mapa e Dashboard de Radicalização no Brasil")
 
-# --- Carrega dados agregados ---
+# Carrega dados agregados
 with open("../data/indicadores_estado.json", "r") as f:
     dados = json.load(f)
-
 df = pd.DataFrame(dados)
+df['geo'] = df['geo'].str.upper()
 
-# --- Carrega GeoJSON do Brasil (limites dos estados) ---
-# Fonte: IBGE ou geojson gratuito
+# Carrega GeoJSON Brasil
 geojson_url = "https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson"
 brasil_geo = gpd.read_file(geojson_url)
-
-# Plotly exige que o nome do estado no GeoJSON e no DataFrame combinem
-# Vamos normalizar os nomes
-df['geo'] = df['geo'].str.upper()
 brasil_geo['name'] = brasil_geo['name'].str.upper()
 
-# --- Mapa interativo ---
+# Mapa interativo
 fig_map = px.choropleth_mapbox(
     df,
     geojson=brasil_geo.__geo_interface__,
@@ -38,11 +33,10 @@ fig_map = px.choropleth_mapbox(
     hover_name='geo',
     hover_data={'indice_radicalizacao':True, 'total_posts':True, 'radicalizados':True}
 )
-
 st.subheader("Mapa de Radicalização por Estado")
 st.plotly_chart(fig_map, use_container_width=True)
 
-# --- Gráfico de barras ---
+# Gráfico de barras
 fig_bar = px.bar(
     df,
     x='geo',
@@ -54,8 +48,7 @@ fig_bar = px.bar(
 st.subheader("Índice de Radicalização por Estado")
 st.plotly_chart(fig_bar, use_container_width=True)
 
-# --- Linha do tempo (simulada) ---
-# Criar dataframe simulado de evolução
+# Linha do tempo (simulada)
 df_tempo = pd.DataFrame({
     'date': pd.date_range(start='2026-02-01', periods=5),
     'indice_radicalizacao': [0.3,0.35,0.33,0.38,0.36]
