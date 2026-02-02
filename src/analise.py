@@ -1,39 +1,36 @@
 import json
 import pandas as pd
 from datetime import datetime, timedelta
+from geolocalizacao import cidade_para_estado
 
-# --- Carregar posts coletados ---
+# --- CARREGAR POSTS ---
 with open("../data/posts.json", "r", encoding="utf-8") as f:
     posts = json.load(f)
 
 df = pd.DataFrame(posts)
+df['geo'] = df.get('geo', None)
 
-# Garantir coluna geo
-if 'geo' not in df.columns:
-    df['geo'] = None
-df['geo'] = df['geo'].fillna("SEM_INFO")
+# Converter cidade/geo para estado
+df['geo'] = df['geo'].apply(lambda x: cidade_para_estado(x) if x else "SEM_INFO")
 
-# Garantir coluna score de radicalização
-if 'score' not in df.columns:
-    df['score'] = 0.0
+# Criar score de radicalização (simples: palavras-chave)
+KEYWORDS = ["extremismo", "radicalização", "ideologia"]  # exemplo
+df['score'] = df['text'].apply(lambda t: sum([1 for k in KEYWORDS if k in t.lower()]))
 
 # --- Agregação por estado ---
 estado_agregado = df.groupby('geo').agg(
     total_posts=('text','count'),
     radicalizados=('score','sum')
 ).reset_index()
-
 estado_agregado['indice_radicalizacao'] = estado_agregado['radicalizados'] / estado_agregado['total_posts']
 
-# --- Salvar indicadores por estado ---
+# Salvar JSON para dashboard
 estado_agregado.to_json("../data/indicadores_estado.json", orient="records", force_ascii=False)
 
-# --- Posts das últimas 24h ---
-hoje = datetime.utcnow()
+# --- Posts últimas 24h ---
 df['created_at'] = pd.to_datetime(df['created_at'])
+hoje = datetime.utcnow()
 ultimas_24h = df[df['created_at'] >= hoje - timedelta(hours=24)]
-
-# --- Salvar posts recentes para nuvem de palavras ---
 ultimas_24h[['text']].to_json("../data/posts_24h.json", orient="records", force_ascii=False)
 
 print("Análise concluída! JSONs atualizados.")
