@@ -20,6 +20,10 @@ with open(os.path.join(DATA_PATH, "indicadores_estado.json"), "r") as f:
 df = pd.DataFrame(dados)
 df['geo'] = df['geo'].str.upper()
 
+# Verifica se coluna geo existe
+if 'geo' not in df.columns:
+    df['geo'] = "SEM_INFO"
+    
 # --- GeoJSON Brasil ---
 geojson_url = "https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson"
 brasil_geo = gpd.read_file(geojson_url)
